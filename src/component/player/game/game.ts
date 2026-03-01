@@ -760,18 +760,18 @@ class Game {
 		// return
 		for (const farmer in logs) {
 			const farmerLogs = logs[farmer]
-			const me = parseInt(farmer, 10) === store.state.farmer!.id
+			// const me = parseInt(farmer, 10) === store.state.farmer!.id
 			for (const action in farmerLogs) {
 				const actionI = parseInt(action, 10)
 				if (!(action in this.logs)) {
 					this.logs[actionI] = []
 				}
 				for (const log of farmerLogs[action]) {
-					const type = log[1]
-					log[6] = me
-					if (me || (type !== 4 && type !== 9 && type !== 10 && type !== 5)) {
+					// const type = log[1]
+					// log[6] = me
+					// if (me || (type !== 4 && type !== 9 && type !== 10 && type !== 5)) {
 						this.logs[actionI].push(log)
-					}
+					// }
 				}
 			}
 		}
