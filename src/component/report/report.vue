@@ -469,13 +469,13 @@
 				this.statistics.generate(this.fight)
 				// console.log(this.statistics)
 
-				if (this.$store.state.farmer) {
+				// if (this.$store.state.farmer) {
 					LeekWars.get('fight/get-logs/' + id).then(d => {
 						this.logs = Object.freeze(d)
 						this.processLogs()
 						this.warningsErrors()
 					})
-				}
+				// }
 				this.getChartDamage()
 				this.updateMap()
 				this.walkedCells(999)
@@ -523,8 +523,8 @@
 				for (const farmer in this.logs) {
 					const farmerLogs = this.logs[farmer]
 					if (i in farmerLogs) {
-						this.actions[a].me = parseInt(farmer, 10) === store.state.farmer!.id
-						this.actions[a].logs.push(...farmerLogs[i].filter(l => l[1] !== 4 && l[1] !== 9 && l[1] !== 10))
+						this.actions[a].me = true
+						this.actions[a].logs.push(...farmerLogs[i])
 					}
 				}
 			}
@@ -541,7 +541,7 @@
 			this.errors = []
 			this.warnings = []
 			for (const farmer in this.logs) {
-				if (parseInt(farmer, 10) !== this.$store.state.farmer.id) { continue }
+				// if (parseInt(farmer, 10) !== this.$store.state.farmer.id) { continue }
 				const farmerLogs = this.logs[farmer]
 				for (const a in farmerLogs) {
 					const action = farmerLogs[a]
