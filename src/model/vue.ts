@@ -15,7 +15,7 @@ import RankingBadge from '@/component/ranking-badge.vue'
 import Talent from '@/component/talent.vue'
 import { env } from '@/env'
 import { i18n, loadLanguageAsync } from '@/model/i18n'
-import { LeekWars } from '@/model/leekwars'
+import { LeekWars, setRouter } from '@/model/leekwars'
 import '@/model/serviceworker'
 import { store } from "@/model/store"
 import router, { getRedirectAfterLogin } from '@/router'
@@ -28,7 +28,7 @@ import { createVuetify } from 'vuetify'
 import 'vuetify/styles'
 import '@mdi/font/css/materialdesignicons.css'
 import { formatEmojis } from './emojis'
-import { emitter, setVueMain } from './emitter'
+import { displayWarningMessage, emitter, setVueMain } from './emitter'
 import '@/chart'
 
 const Console = defineAsyncComponent(() => import('@/component/app/console.vue'))
@@ -73,17 +73,6 @@ const vuetify = createVuetify({
 		},
 	},
 })
-
-function displayWarningMessage() {
-	const style = "color: black; font-size: 13px; font-weight: bold;"
-	const styleRed = "color: red; font-size: 14px; font-weight: bold;"
-	console.log("%c" + i18n.global.t('main.console_alert_1'), style)
-	console.log("%c" + i18n.global.t('main.console_alert_2'), styleRed)
-	console.log("%c" + i18n.global.t('main.console_alert_3'), style)
-	console.log("")
-	console.log("%c✔️ " + i18n.global.t('main.console_github'), style)
-	console.log("")
-}
 
 // Handle Vite CSS/JS preload errors after deployment (stale hashed assets)
 // The guard flag prevents infinite reload loops if the error persists after reload.
@@ -267,6 +256,7 @@ const app = createApp({
 	}
 })
 
+setRouter(router)
 app.use(router)
 app.use(i18n)
 app.use(store)
@@ -423,6 +413,15 @@ app.directive('emojis', (el) => {
 	})
 })
 
+app.config.globalProperties.$filters = {
+	number: LeekWars.formatNumber,
+	date: LeekWars.formatDate,
+	datetime: LeekWars.formatDateTime,
+	timeseconds: LeekWars.formatTimeSeconds,
+	time: LeekWars.formatTime,
+	duration: LeekWars.formatDuration,
+}
+
 const vm = app.mount('#app2') as ComponentPublicInstance & {
 	$once: (event: string, callback: () => void) => void
 	$emit: (event: string, ...args: any[]) => void
@@ -472,16 +471,6 @@ if (window.__FARMER__) {
 			}
 		})
 	}
-}
-
-// Register Vue filters after LeekWars is fully initialized
-app.config.globalProperties.$filters = {
-	number: LeekWars.formatNumber,
-	date: LeekWars.formatDate,
-	datetime: LeekWars.formatDateTime,
-	timeseconds: LeekWars.formatTimeSeconds,
-	time: LeekWars.formatTime,
-	duration: LeekWars.formatDuration,
 }
 
 export { vueMain } from './emitter'

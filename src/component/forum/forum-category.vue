@@ -42,16 +42,25 @@
 		<panel class="first">
 			<template #content>
 				<div class="content">
-				<breadcrumb v-if="LeekWars.mobile" :items="breadcrumb_items" />
-
-				<div class="flex">
+				<div class="flex breadcrumb-sort">
+					<breadcrumb v-if="LeekWars.mobile" :items="breadcrumb_items" />
 					<v-spacer />
 					<pagination v-if="categories" :current="page" :total="pages" :url="'/forum/category-' + category_ids" />
 					<v-spacer />
-					<select v-model="order">
-						<option value="date">Date</option>
-						<option value="votes">Votes</option>
-					</select>
+					<div>
+						<v-select v-model="order" :items="orderItems" item-value="value" item-title="title" hide-details density="compact" variant="solo" class="order-select">
+							<template #selection="{ item }">
+								<v-icon size="small">{{ item.raw.icon }}</v-icon>&nbsp;{{ item.raw.title }}
+							</template>
+							<template #item="{ props, item }">
+								<v-list-item v-bind="props">
+									<template #prepend>
+										<v-icon size="small">{{ item.raw.icon }}</v-icon>
+									</template>
+								</v-list-item>
+							</template>
+						</v-select>
+					</div>
 				</div>
 
 				<div v-if="!LeekWars.mobile" class="topic header forum-header">
@@ -70,15 +79,24 @@
 						</div>
 						<div>
 							<span v-ripple class="title">
-								<v-icon v-if="topic.resolved" :title="$t('resolved')" class="attr resolved">mdi-check-circle</v-icon>
+								<v-icon v-if="topic.status === ForumTopicStatus.RESOLVED" :title="$t('status_resolved')" class="attr resolved">mdi-check-circle</v-icon>
+								<v-icon v-if="topic.status === ForumTopicStatus.NOT_REPRODUCED" :title="$t('status_not_reproduced')" class="attr not-reproduced">mdi-help-circle</v-icon>
+								<v-icon v-if="topic.status === ForumTopicStatus.NOT_PLANNED" :title="$t('status_not_planned')" class="attr not-planned">mdi-minus-circle</v-icon>
+								<v-icon v-if="topic.status === ForumTopicStatus.NOT_A_BUG" :title="$t('status_not_a_bug')" class="attr not-a-bug">mdi-close-circle</v-icon>
 								<v-icon v-if="topic.closed" :title="$t('locked')" class="attr">mdi-lock</v-icon>
 								<v-icon v-if="topic.pinned" :title="$t('pinned')" class="attr">mdi-pin</v-icon>
+								<v-icon v-if="topic.acknowledged && !topic.private_issue" :title="$t('status_acknowledged')" class="attr acknowledged">mdi-eye</v-icon>
 								<a v-if="topic.issue" :href="'https://github.com/leek-wars/leek-wars/issues/' + topic.issue" class="attr issue" target="_blank" rel="noopener">
 									#{{ topic.issue }}
 								</a>
 								<a v-if="topic.private_issue && $store.state.farmer && $store.state.farmer.admin" :href="'https://github.com/5pilow/leek-wars/issues/' + topic.private_issue" class="attr issue private-issue" target="_blank" rel="noopener">
 									#{{ topic.private_issue }}
 								</a>
+								<v-icon v-if="topic.hidden" :title="$t('hidden_topic')" class="attr hidden-icon">mdi-eye-off</v-icon>
+								<v-icon v-if="topic.priority === 1" :title="$t('priority_high')" class="attr priority-flag priority-high">mdi-flag</v-icon>
+								<v-icon v-if="topic.priority === 2" :title="$t('priority_medium')" class="attr priority-flag priority-medium">mdi-flag</v-icon>
+								<v-icon v-if="topic.priority === 3" :title="$t('priority_low')" class="attr priority-flag priority-low">mdi-flag</v-icon>
+								<span v-if="topic.release" class="attr release-badge">v{{ String(topic.release).charAt(0) + '.' + String(topic.release).slice(1) }}</span>
 								<router-link :to="'/forum/category-' + topic.category + '/topic-' + topic.id">{{ topic.title }}</router-link>
 								<flag v-if="activeLanguages.length >= 2 && topic.lang" :code="LeekWars.languages[topic.lang].country" :clickable="false" />
 							</span>
@@ -171,9 +189,18 @@
 				<input v-model="createTitle" @keyup="updateDraftTitle" class="topic-name card" type="text">
 				<h3>{{ $t('new_topic_message') }}</h3>
 				<textarea v-model="createMessage" @keyup="updateDraft" class="topic-message card"></textarea>
-				<v-radio-group v-if="Object.values(forumLanguages).length > 1" v-model="createMessageLang">
-					<v-radio v-for="(_, lang) in forumLanguages" :key="lang" :value="lang" :label="LeekWars.languages[lang].name" />
-				</v-radio-group>
+
+				<div class="grid">
+					<v-radio-group v-if="Object.values(forumLanguages).length > 1" v-model="createMessageLang" hide-details>
+						<v-radio v-for="(_, lang) in forumLanguages" :key="lang" :value="lang" :label="LeekWars.languages[lang].name" />
+					</v-radio-group>
+					<template v-if="$store.state.farmer && $store.state.farmer.admin">
+						<div>
+							<v-text-field v-model.number="createRelease" label="Release" type="number" placeholder="245" hide-details variant="outlined" density="compact" />
+						</div>
+						<v-checkbox v-model="createHidden" :label="$t('hidden_topic')" hide-details />
+					</template>
+				</div>
 				<formatting-rules />
 			</div>
 			<template #actions>
@@ -197,7 +224,7 @@
 
 <script lang="ts">
 	import { locale } from '@/locale'
-	import { ForumCategory, ForumTopic } from '@/model/forum'
+	import { ForumCategory, ForumTopic, ForumTopicStatus } from '@/model/forum'
 	import { mixins } from '@/model/i18n'
 	import { Language, LeekWars } from '@/model/leekwars'
 	import { Options, Vue, Watch } from 'vue-property-decorator'
@@ -210,6 +237,7 @@ import { emitter } from '@/model/vue'
 
 	@Options({ name: 'forum_category', i18n: {}, mixins: [...mixins], components: { Breadcrumb, FormattingRules, RichTooltipFarmer, Pagination } })
 	export default class ForumCategoryPage extends Vue {
+		ForumTopicStatus = ForumTopicStatus
 		categories: ForumCategory[] | null = null
 		topics: ForumTopic[] | null = null
 		page: number = 0
@@ -220,10 +248,19 @@ import { emitter } from '@/model/vue'
 		query: string = ''
 		createMessageLang: string = 'fr'
 		markAsReadDialog: boolean = false
+		createRelease: number | null = null
+		createHidden: boolean = false
 		forumLanguages: {[key: string]: boolean} = {}
 		translations: any[] = []
 		showResolved: boolean = true
 		order: string = localStorage.getItem('forum/topic-order') || 'date'
+		get orderItems() {
+			return [
+				{ value: 'date', title: 'Date', icon: 'mdi-clock-outline' },
+				{ value: 'votes', title: 'Votes', icon: 'mdi-thumb-up-outline' },
+				{ value: 'priority', title: this.$t('priority') as string, icon: 'mdi-flag-outline' },
+			]
+		}
 
 		get languages() {
 			return Object.values(LeekWars.languages).filter(l => l.forum)
@@ -280,10 +317,15 @@ import { emitter } from '@/model/vue'
 		}
 		create() {
 			if (!this.categories) { return }
-			LeekWars.post('forum/create-topic', {category_id: this.categories[0].id, title: this.createTitle, message: this.createMessage, issue: 0, lang: this.createMessageLang}).then(data => {
+			const params: any = {category_id: this.categories[0].id, title: this.createTitle, message: this.createMessage, issue: 0, lang: this.createMessageLang}
+			params.release = this.createRelease || 0
+			params.hidden = this.createHidden
+			LeekWars.post('forum/create-topic', params).then(data => {
 				this.createDialog = false
 				localStorage.setItem('forum/draft', '')
 				localStorage.setItem('forum/draft-title', '')
+				this.createRelease = null
+				this.createHidden = false
 				if (this.categories) {
 					this.$router.push("/forum/category-" + this.category_ids + "/topic-" + data.topic_id)
 				}
@@ -339,205 +381,246 @@ import { emitter } from '@/model/vue'
 </script>
 
 <style lang="scss" scoped>
-	.forum-language {
-		display: inline-flex;
-		padding: 0 4px;
-		cursor: pointer;
-		align-items: center;
-		height: 100%;
-		gap: 6px;
-		user-select: none;
-	}
-	.flag {
-		max-width: 28px;
-		max-height: 20px;
-		margin-right: 4px;
-	}
-	.language {
-		display: flex;
-		align-items: center;
-	}
-	.language .name {
-		padding-left: 8px;
-	}
-	.forum-header {
-		font-size: 18px;
-		font-weight: 300;
-		background: none;
-		margin: 0;
-	}
-	#app.app .panel .content {
-		padding: 0;
-	}
-	.topics {
-		padding: 0 5px;
-	}
-	.topic {
-		margin-bottom: 5px;
-		display: flex;
-		align-items: center;
-	}
-	.topic:not(.header) {
-		border: 1px solid var(--border);
-	}
-	.topic.pinned {
-		background: var(--pure-white);
-	}
-	.topic .attr {
-		height: 19px;
-		margin-right: 4px;
-		padding: 2px 0;
-		vertical-align: bottom;
-	}
-	i.attr.resolved {
+
+.forum-language {
+	display: inline-flex;
+	padding: 0 4px;
+	cursor: pointer;
+	align-items: center;
+	height: 100%;
+	gap: 6px;
+	user-select: none;
+}
+.flag {
+	max-width: 28px;
+	max-height: 20px;
+	margin-right: 4px;
+}
+.language {
+	display: flex;
+	align-items: center;
+}
+.language .name {
+	padding-left: 8px;
+}
+.forum-header {
+	font-size: 18px;
+	font-weight: 300;
+	background: none;
+	margin: 0;
+}
+#app.app .panel .content {
+	padding: 0;
+}
+#app.app .topics {
+	padding: 0 5px;
+	margin-bottom: 10px;
+}
+.topic {
+	margin-bottom: 5px;
+	display: flex;
+	align-items: center;
+}
+.topic:not(.header) {
+	border: 1px solid var(--border);
+}
+.topic.pinned {
+	background: var(--pure-white);
+}
+.topic .attr {
+	height: 19px;
+	margin-right: 4px;
+	padding: 2px 0;
+	vertical-align: bottom;
+}
+i.attr {
+	// color: #666;
+	font-size: 19px;
+	&.resolved {
 		color: #5fad1b;
 	}
-	i.attr {
-		color: #666;
-		font-size: 19px;
+	&.not-reproduced {
+		color: orange;
 	}
-	.topic > div {
-		padding: 8px;
-		flex: 1;
-	}
-	.topic:not(.header):hover {
-		background-color: var(--pure-white);
-		box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14), 0px 1px 3px 0px rgba(0,0,0,0.12);
-	}
-	.topic > .seen {
-		flex: 0 0 40px;
-		padding-top: 10px;
-		padding-bottom: 10px;
-		padding-right: 5px;
-	}
-	.topic .seen img {
-		height: 40px;
-	}
-	body.dark .topic .seen img.seen {
-		filter: invert(0.85);
-	}
-	.topic .flag {
-		height: 13px;
-		margin-left: 6px;
-		vertical-align: bottom;
-		margin-bottom: 3px;
-	}
-	.topic .title {
-		font-size: 17px;
-		margin-bottom: 5px;
-		display: inline-block;
-		.issue {
-			background: #0366d6;
-			color: white;
-			border-radius: 5px;
-			font-size: 13px;
-			font-weight: 500;
-			padding: 0 4px;
-			display: inline-block;
-			margin-bottom: 2px;
-			height: auto;
-			&.private-issue {
-				background: #6f42c1;
-			}
-		}
-	}
-	.topic .description {
-		font-size: 14px;
-		margin-top: 4px;
-		display: flex;
-		gap: 10px;
-		.votes {
-			display: flex;
-			gap: 6px;
-			align-items: center;
-			.vote {
-				display: inline-block;
-				border-radius: 6px;
-			}
-			.vote i {
-				vertical-align: bottom;
-				font-size: 15px;
-				margin-right: 3px;
-			}
-			.vote.zero {
-				opacity: 0.3;
-			}
-			.vote.active {
-				font-weight: bold;
-			}
-			.vote.up, .vote.up i {
-				color: #5fad1b;
-			}
-			.vote.down {
-				color: red;
-				i {
-					color: red;
-				}
-			}
-			.vote.up.zero, .vote.down.zero {
-				color: #555;
-				i {
-					color: #555;
-				}
-			}
-		}
-	}
-	.topic .description i {
-		font-size: 14px;
-		vertical-align: bottom;
-	}
-
-	.topic .farmer.deleted {
-		font-style: italic;
-		color: #aaa;
-	}
-	.topic .num-messages {
-		flex: 0 0 100px;
-		text-align: center;
-	}
-	.topic .last-message {
-		flex: 0 0 176px;
-		text-align: center;
-		vertical-align: top;
-   		white-space: nowrap;
-	}
-	.topic .last-message-wrapper {
-		display: inline-block;
-		white-space: nowrap;
-		max-width: 110px;
-		text-overflow: ellipsis;
-		overflow-x: hidden;
-		margin-bottom: -4px;
-	}
-	.topic .messages {
+	&.not-planned {
 		color: var(--text-color);
+		opacity: 0.7;
 	}
-	.create-popup .topic-name {
-		width: 100%;
-		padding: 10px;
-		font-size: 17px;
+	&.not-a-bug {
+		color: var(--text-color-secondary);
 	}
-	.create-popup .topic-message {
-		min-width: 100%;
-		max-width: 100%;
-		min-height: 100%;
-		height: 180px;
-		max-height: 500px;
-		margin-top: 5px;
-		margin-bottom: 10px;
-		padding: 10px;
-		font-size: 15px;
-		font-family: "Roboto", sans-serif;
+	&.acknowledged {
+		color: #6f42c1;
 	}
-	.search-box img {
-		cursor: pointer;
+}
+.topic > div {
+	padding: 8px;
+	flex: 1;
+}
+.topic:not(.header):hover {
+	background-color: var(--pure-white);
+	box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14), 0px 1px 3px 0px rgba(0,0,0,0.12);
+}
+.topic > .seen {
+	flex: 0 0 40px;
+	padding-top: 10px;
+	padding-bottom: 10px;
+	padding-right: 5px;
+}
+.topic .seen img {
+	height: 40px;
+}
+body.dark .topic .seen img.seen {
+	filter: invert(0.85);
+}
+.topic .flag {
+	height: 13px;
+	margin-left: 6px;
+	vertical-align: bottom;
+	margin-bottom: 3px;
+}
+.topic .title {
+	font-size: 17px;
+	margin-bottom: 5px;
+	display: inline-block;
+	.issue, .release-badge {
+		background: #0366d6;
+		color: white;
+		border-radius: 5px;
+		font-size: 13px;
+		font-weight: 500;
+		padding: 0 4px;
+		display: inline-block;
+		margin-bottom: 2px;
+		height: auto;
+		&.private-issue {
+			background: none;
+			color: #6f42c1;
+    		border: 1px solid #6f42c1;
+		}
 	}
-	.grey {
-		color: #888;
+	.release-badge {
+		background: #28a745;
 	}
+	.priority-flag {
+		font-size: 18px;
+		opacity: 1;
+		&.priority-high { color: #e53935; }
+		&.priority-medium { color: #fb8c00; }
+		&.priority-low { color: #757575; }
+	}
+}
+.topic .description {
+	font-size: 14px;
+	margin-top: 4px;
+	display: flex;
+	gap: 10px;
+	.votes {
+		display: flex;
+		gap: 6px;
+		align-items: center;
+		.vote {
+			display: inline-block;
+			border-radius: 6px;
+		}
+		.vote i {
+			vertical-align: bottom;
+			font-size: 15px;
+			margin-right: 3px;
+		}
+		.vote.zero {
+			opacity: 0.3;
+		}
+		.vote.active {
+			font-weight: bold;
+		}
+		.vote.up, .vote.up i {
+			color: #5fad1b;
+		}
+		.vote.down {
+			color: red;
+			i {
+				color: red;
+			}
+		}
+		.vote.up.zero, .vote.down.zero {
+			color: #555;
+			i {
+				color: #555;
+			}
+		}
+	}
+}
+.topic .description i {
+	font-size: 14px;
+	vertical-align: bottom;
+}
 
-select {
-	align-self: center;
+.topic .farmer.deleted {
+	font-style: italic;
+	color: #aaa;
+}
+.topic .num-messages {
+	flex: 0 0 100px;
+	text-align: center;
+}
+.topic .last-message {
+	flex: 0 0 176px;
+	text-align: center;
+	vertical-align: top;
+	white-space: nowrap;
+}
+.topic .last-message-wrapper {
+	display: inline-block;
+	white-space: nowrap;
+	max-width: 110px;
+	text-overflow: ellipsis;
+	overflow-x: hidden;
+	margin-bottom: -4px;
+}
+.topic .messages {
+	color: var(--text-color);
+}
+.create-popup {
+	.grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+		gap: 20px;
+		align-items: center;
+		margin-bottom: 10px;
+	}
+}
+.create-popup .topic-name {
+	width: 100%;
+	padding: 10px;
+	font-size: 17px;
+}
+.create-popup .topic-message {
+	min-width: 100%;
+	max-width: 100%;
+	min-height: 100%;
+	height: 180px;
+	max-height: 500px;
+	margin-top: 5px;
+	margin-bottom: 10px;
+	padding: 10px;
+	font-size: 15px;
+	font-family: "Roboto", sans-serif;
+}
+.search-box img {
+	cursor: pointer;
+}
+.grey {
+	color: #888;
+}
+
+.breadcrumb-sort {
+	padding-bottom: 8px;
+}
+#app.app .breadcrumb-sort {
+	padding: 8px;
+	flex-wrap: wrap;
+	align-items: center;
 }
 
 </style>

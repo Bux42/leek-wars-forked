@@ -29,4 +29,4 @@ npm run preview
 
 ## License
 
-Distributed under the GPL3 license. Copyright (c) 2016-2023, Pilow
+Distributed under the GPL3 license. Copyright (c) 2016-2026, Pilow
