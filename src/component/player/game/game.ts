@@ -767,11 +767,9 @@ class Game {
 					this.logs[actionI] = []
 				}
 				for (const log of farmerLogs[action]) {
-					// const type = log[1]
+					const type = log[1]
 					// log[6] = me
-					// if (me || (type !== 4 && type !== 9 && type !== 10 && type !== 5)) {
-						this.logs[actionI].push(log)
-					// }
+					this.logs[actionI].push(log)
 				}
 			}
 		}

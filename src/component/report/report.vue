@@ -524,7 +524,7 @@
 					const farmerLogs = this.logs[farmer]
 					if (i in farmerLogs) {
 						this.actions[a].me = true
-						this.actions[a].logs.push(...farmerLogs[i])
+						this.actions[a].logs.push(...farmerLogs[i].filter(l => l[1] !== 4 && l[1] !== 9 && l[1] !== 10))
 					}
 				}
 			}
